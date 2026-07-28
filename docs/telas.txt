@@ -1,0 +1,379 @@
+# Mapa de Telas — E-commerce de Joias
+
+Versão atualizada após a definição das regras de negócio (carrinho anônimo, mesclagem no login, variações, reserva TTL, soft delete e pagamento via EFI).
+
+Total: **27 telas** — 15 na loja, 12 no admin.
+
+Larguras a prototipar: **Desktop 1440px** e **Mobile 390px**.
+
+---
+
+# PARTE 1 — LOJA
+
+## 1. Home
+
+- Barra de anúncio (cupom + frete grátis) — dismissível
+- Header: logo centralizado, ícones busca / conta / carrinho com badge de contagem
+- Menu: COLARES · BRINCOS · ANÉIS · PULSEIRAS · OUTROS (com dropdown de subcategorias)
+- Banner carrossel (hero)
+- Faixa de benefícios (4 itens: frete grátis, 3x sem juros, cupom, prata 925)
+- 3 banners de categoria
+- Vitrine "Mais Vendidos" (carrossel de cards)
+- Vitrine "Você Pode Gostar"
+- Newsletter
+- Footer (navegação, atendimento, meios de pagamento, meios de envio, CNPJ)
+
+**Novo:** banner de consentimento de cookies (LGPD), exibido na primeira visita.
+
+---
+
+## 2. Listagem de Categoria (PLP)
+
+- Breadcrumb, título da categoria, contador de produtos
+- Sidebar de filtros: faixa de preço, subcategoria
+- **NOVO — filtro "Apenas em estoque"** (toggle)
+- Ordenação: relevância, menor preço, maior preço, lançamentos
+- Grid 4 colunas desktop / 2 colunas mobile
+- Paginação ou scroll infinito
+
+**Mudança no ProductCard:** como o estoque agora é por variação, o card considera a **soma do estoque de todas as variações**. Se o total for zero, o card entra no estado "Esgotado".
+
+---
+
+## 3. Página de Produto (PDP)
+
+- Galeria: thumbs verticais + imagem principal com zoom
+  - **Mudança:** número variável de imagens (tabela `product_images`), não fixo. Prototipar com 1, 3 e 6 imagens
+- Nome, preço, preço com desconto Pix, parcelamento
+- **Seletor de variação — agora obrigatório em todo produto**
+  - Todo produto tem ao menos a variação `ÚNICO`
+  - Produto com variação real (tamanho de anel, comprimento de colar) exibe os botões
+  - **Variação esgotada aparece riscada e desabilitada — não é ocultada**
+- Seletor de quantidade **limitado ao estoque disponível da variação selecionada**
+- **NOVO — aviso "Últimas X unidades"** quando o estoque estiver abaixo do limite configurado
+- CTA "Comprar" + "Adicionar ao carrinho"
+- Cálculo de frete por CEP
+- Abas: descrição, medidas, garantia
+- Guia de medidas em modal (aro do anel, comprimento do colar)
+- "Você também pode gostar"
+
+### Estados da PDP a prototipar
+1. Produto normal com estoque
+2. Produto com uma ou mais variações esgotadas
+3. Produto totalmente esgotado (CTA desabilitado, botão "Avise-me")
+4. Produto sem variação real (seletor oculto, usa `ÚNICO` por baixo)
+
+---
+
+## 4. Carrinho — Drawer lateral
+
+- Barra de progresso do frete grátis ("Faltam R$ XX para frete grátis")
+- Lista de itens: imagem, nome, variação, preço unitário, seletor de quantidade, remover
+- Campo de cupom
+- Subtotal
+- CTA "Finalizar compra"
+
+### NOVO — Estados de disponibilidade por item
+
+**Estado "Indisponível"** (estoque zerado, produto desativado ou soft deleted)
+- Badge vermelho "Indisponível"
+- Item esmaecido (opacidade reduzida)
+- Seletor de quantidade travado
+- Preço riscado
+
+**Estado "Estoque parcial"** (usuário tem 5, restam 2)
+- Aviso "Restam apenas 2 unidades"
+- Quantidade ajustada automaticamente para o disponível
+
+**Botão "Remover indisponíveis"** — aparece só quando existe ao menos um item nesse estado.
+
+**CTA de checkout desabilitado** enquanto houver item indisponível, com tooltip explicando o motivo.
+
+**NOVO — Aviso de mesclagem:** após o login, se dois carrinhos foram combinados, exibir toast "Seu carrinho foi combinado com o que você já tinha salvo."
+
+### Estados gerais
+1. Carrinho vazio (ilustração + CTA "Ver produtos")
+2. Carrinho normal
+3. Carrinho com item indisponível
+4. Carrinho com frete grátis já atingido
+
+---
+
+## 5. Carrinho — Página completa
+
+Versão expandida do drawer, com cálculo de frete por CEP e resumo lateral fixo. Mesmos estados do item 4.
+
+---
+
+## 6. Checkout — MUDOU DE 3 PARA 4 ETAPAS
+
+O login virou obrigatório, então ele deixa de ser um passo dentro de "Identificação" e vira barreira própria.
+
+```
+Etapa 1: Login / Cadastro
+Etapa 2: Entrega (endereço + método de frete)
+Etapa 3: Pagamento (Pix ou cartão)
+Etapa 4: Revisão e confirmação
+```
+
+Elementos presentes em **todas** as etapas:
+- Indicador de progresso (stepper)
+- Resumo do pedido fixo na lateral
+- **NOVO — contador regressivo de 20 minutos** referente à reserva de estoque, sempre visível
+
+### Etapa 1 — Login / Cadastro
+- Abas ou colunas: "Já tenho conta" / "Criar conta"
+- Link "Esqueci minha senha"
+- Aviso de que o carrinho será preservado
+
+### Etapa 2 — Entrega
+- Lista de endereços salvos (usuário recorrente)
+- Formulário de novo endereço com busca automática por CEP
+- Seleção do método de frete com prazo e valor
+- Indicação de frete grátis quando aplicável
+
+### Etapa 3 — Pagamento
+- Seleção: Pix (com desconto) ou Cartão de crédito
+- Cartão: campos tokenizados pelo SDK da EFI, seleção de parcelas
+- Campo de cupom (se ainda não aplicado)
+
+### Etapa 4 — Revisão
+- Resumo completo: itens, endereço, frete, desconto, total
+- Aceite dos termos
+- Botão "Confirmar pedido"
+
+### NOVO — Telas de exceção do checkout
+- **Reserva expirada:** os 20 minutos acabaram → volta ao carrinho com aviso
+- **Item perdeu a reserva:** outro cliente comprou durante o processo → volta ao carrinho indicando qual item
+
+---
+
+## 7. Pagamento Pix — TELA NOVA
+
+Não existia no mapa anterior e é obrigatória para o fluxo com EFI.
+
+- QR Code em destaque
+- Código copia-e-cola com botão "Copiar"
+- Contador de expiração da cobrança
+- Instruções passo a passo ("Abra o app do banco → Pix → Ler QR Code")
+- Valor a pagar
+- Número do pedido
+- Aviso de que a página atualiza sozinha
+
+### Estados
+1. Aguardando pagamento (polling a cada 5 segundos)
+2. Pagamento confirmado → redireciona para a confirmação
+3. Cobrança expirada → oferece gerar nova cobrança
+4. Erro na geração do QR Code
+
+---
+
+## 8. Confirmação de Pedido — TELA NOVA
+
+- Número do pedido em destaque
+- Resumo dos itens
+- Endereço de entrega
+- Prazo estimado
+- Próximos passos
+- CTA "Ver meus pedidos" e "Continuar comprando"
+
+---
+
+## 9. Busca — TELA NOVA
+
+- Campo de busca com sugestões enquanto digita
+- Resultados usando os mesmos filtros e ordenação da PLP
+- Estado vazio: "Nenhum resultado para X" + sugestões de categorias
+
+---
+
+## 10. Login
+
+- E-mail e senha
+- Link "Esqueci minha senha"
+- Link para cadastro
+- Estados: erro de credencial, conta bloqueada por tentativas (rate limit de 5 por 15 min)
+
+---
+
+## 11. Cadastro
+
+- Nome, e-mail, CPF, telefone, senha, confirmação
+- Indicador de força da senha
+- Aceite dos termos e política de privacidade
+- Validação inline
+- Estado: e-mail já cadastrado
+
+---
+
+## 12. Recuperação de Senha — TELAS NOVAS
+
+- **12a.** Solicitar redefinição (informa e-mail)
+- **12b.** Definir nova senha (via link com token)
+- Estados: token inválido, token expirado, sucesso
+
+---
+
+## 13. Minha Conta — TELA NOVA
+
+- Dados pessoais (editar nome, telefone, CPF)
+- Gerenciar endereços (listar, adicionar, editar, definir padrão, remover)
+- Alterar senha
+- **NOVO — solicitar exclusão de conta e dados (LGPD)**
+
+---
+
+## 14. Meus Pedidos — TELA NOVA
+
+- **14a.** Lista de pedidos com número, data, status e total
+- **14b.** Detalhe do pedido: itens, endereço, pagamento, código de rastreio, linha do tempo do status
+- Filtro por status
+- Estado vazio: "Você ainda não fez pedidos"
+
+---
+
+## 15. Institucionais e Erro
+
+- Quem Somos
+- Garantia — Prata 925
+- Trocas e Devoluções
+- **NOVO — Política de Privacidade (LGPD)**
+- **NOVO — Termos de Uso**
+- **NOVO — Erro 404** com sugestões e busca
+
+---
+
+# PARTE 2 — PAINEL ADMINISTRATIVO
+
+Prioridade visual baixa. O admin precisa ser funcional e denso, não bonito. Use componentes padrão e foque em clareza de dados.
+
+## 16. Login Administrativo
+Formulário simples e separado da loja.
+
+## 17. Dashboard
+- Cards: vendas do dia, vendas do mês, pedidos pendentes, ticket médio
+- Alerta de produtos com estoque baixo
+- Últimos 10 pedidos
+- Gráfico de vendas dos últimos 30 dias
+
+## 18. Lista de Produtos
+- Tabela com imagem, nome, SKU, categoria, preço, estoque total, status
+- Busca por nome ou SKU
+- Filtros: categoria, status, estoque baixo
+- Ações: editar, duplicar, desativar, excluir (soft delete)
+
+## 19. Cadastro / Edição de Produto — a tela mais complexa do admin
+- **Aba Dados:** nome, slug (auto-gerado e editável), SKU, categoria, descrição curta, descrição completa, preço, preço promocional, peso em gramas, toggles Ativo e Destaque
+- **Aba Imagens:** upload múltiplo com drag-and-drop, reordenação por arraste, definição da imagem principal, remoção individual
+- **Aba Variações:** adicionar de 1 a N linhas com nome do atributo, valor, estoque, preço opcional e status. Produto sem variação recebe `ÚNICO` automaticamente
+- **Aba Estoque:** ajuste manual com campo de justificativa obrigatório, e histórico de movimentações
+
+## 20. Lixeira de Produtos
+Lista de produtos com `deleted_at` preenchido, com opção de restaurar.
+
+## 21. Lista de Pedidos
+- Tabela com número, cliente, data, status, total
+- Filtros: status, período, forma de pagamento
+- Busca por número ou cliente
+- Exportação para CSV
+
+## 22. Detalhe do Pedido
+- Dados do cliente e endereço
+- Itens com snapshot (nome e preço do momento da compra)
+- Informações do pagamento (método, status, txid da EFI)
+- Alteração de status respeitando a máquina de estados
+- Campo de código de rastreio (dispara e-mail ao cliente)
+- Botão de cancelamento com devolução automática de estoque
+- Linha do tempo de eventos do pedido
+
+## 23. Categorias
+CRUD com hierarquia (pai e filho), ordenação por arraste, imagem e status.
+
+## 24. Cupons
+CRUD com código, tipo, valor, mínimo de compra, limites de uso, período de validade e visualização de quem usou.
+
+## 25. Frete
+Tabela de faixas de CEP ou estado, com valor, prazo e limite para frete grátis.
+
+## 26. Clientes
+Listagem, busca, histórico de pedidos por cliente. Sem qualquer acesso a senha.
+
+## 27. Configurações
+Limite de frete grátis, TTL da reserva, dados da loja, WhatsApp, parcelamento máximo, valor mínimo por parcela, desconto do Pix, alerta de estoque baixo.
+
+---
+
+# PARTE 3 — ESTADOS TRANSVERSAIS
+
+Prototipar estes estados evita retrabalho na implementação.
+
+| Estado | Onde aplicar |
+|---|---|
+| Loading (skeleton) | Vitrines da home, PLP, PDP, listas do admin |
+| Vazio | Carrinho, busca sem resultado, categoria sem produto, sem pedidos |
+| Erro de rede | Qualquer tela com carregamento assíncrono |
+| CEP inválido | PDP e checkout |
+| Cupom inválido ou expirado | Carrinho e checkout |
+| Pagamento recusado | Checkout |
+| Sucesso | Produto adicionado, cupom aplicado, pedido concluído |
+| Item indisponível | Carrinho e PDP |
+| Reserva expirada | Checkout e Pix |
+| Sessão expirada | Qualquer tela autenticada |
+
+---
+
+# PARTE 4 — ORDEM DE TRABALHO NO FIGMA
+
+Não desenhe as 27 telas de uma vez. A ordem abaixo reduz retrabalho.
+
+## Etapa 1 — Foundations
+1. Variables de cor (neutros, marca, semânticos de sucesso e erro)
+2. Escala tipográfica (display para títulos, sans para interface)
+3. Grid: desktop 12 colunas / mobile 4 colunas, espaçamento base 8px
+4. Ícones (Lucide ou similar)
+
+## Etapa 2 — Componentes base
+5. Button — primary, secondary, ghost, destructive × default, hover, disabled, loading
+6. Input, Select, Checkbox, Radio, Textarea — com estados de erro
+7. Badge — desconto, frete grátis, esgotado, indisponível
+8. Toast e Modal
+
+## Etapa 3 — ProductCard
+9. É o componente mais reutilizado do projeto: aparece em 6 telas. Variantes: normal, com desconto, com frete grátis, últimas unidades, esgotado, skeleton
+
+## Etapa 4 — Blocos estruturais
+10. Announcement bar, Header (desktop e mobile), Footer, Menu mobile
+
+## Etapa 5 — Fluxo principal de compra
+11. Home → PLP → PDP → Carrinho → Checkout (4 etapas) → Pix → Confirmação
+12. Prototipar esse fluxo e testar antes de seguir
+
+## Etapa 6 — Conta e institucionais
+13. Login, Cadastro, Recuperação, Minha Conta, Meus Pedidos, páginas estáticas, 404
+
+## Etapa 7 — Admin
+14. Login, Dashboard, Produtos (lista e cadastro), Pedidos, demais módulos
+
+## Etapa 8 — Refinamento
+15. Todos os estados transversais da Parte 3
+16. Versão mobile de tudo
+17. Protótipo navegável completo
+
+---
+
+# RESUMO DAS MUDANÇAS EM RELAÇÃO À VERSÃO ANTERIOR
+
+## Telas que ganharam elementos
+| Tela | O que mudou |
+|---|---|
+| PLP | Filtro "apenas em estoque"; card considera soma das variações |
+| PDP | Variação obrigatória; variação esgotada riscada; quantidade limitada ao estoque; aviso de últimas unidades; galeria com N imagens |
+| Carrinho | Estados Indisponível e Estoque parcial; botão remover indisponíveis; CTA bloqueado; aviso de mesclagem |
+| Checkout | De 3 para 4 etapas; contador de 20 minutos; telas de reserva expirada |
+
+## Telas inteiramente novas
+Pagamento Pix · Confirmação de Pedido · Busca · Recuperação de Senha (2) · Minha Conta · Meus Pedidos (2) · Política de Privacidade · Termos de Uso · Erro 404 · Todo o painel admin (12 telas)
+
+## Contagem
+- Versão anterior: 7 grupos de telas
+- Versão atual: 27 telas, sendo 15 na loja e 12 no admin
