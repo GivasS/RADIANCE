@@ -7,25 +7,48 @@ use App\Http\Requests\Admin\ProductImageRequest;
 use App\Models\AdminLog;
 use App\Models\Product;
 use App\Models\ProductImage;
+use App\Services\ImageConversionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use RuntimeException;
 
 class ProductImageController extends Controller
 {
+    public function __construct(private readonly ImageConversionService $imageConverter)
+    {
+    }
+
     /**
      * Upload de 1..N imagens de uma vez (drag-and-drop multiplo do admin).
+     * Todo upload e convertido pra WebP (economiza espaco em disco sem perda
+     * visivel de qualidade) antes de salvar.
      */
     public function store(ProductImageRequest $request, Product $product): JsonResponse
     {
+        $files = $request->file('images');
+
+        // Converte tudo primeiro - se algum arquivo falhar, nao salva nada
+        // pela metade.
+        try {
+            $converted = array_map(
+                fn ($file) => $this->imageConverter->toWebp($file->getRealPath(), $file->getMimeType()),
+                $files,
+            );
+        } catch (RuntimeException $e) {
+            return response()->json(['message' => 'Nao foi possivel processar uma das imagens enviadas. Verifique se o arquivo nao esta corrompido e tente novamente.'], 422);
+        }
+
         $hasMain = $product->images()->where('is_main', true)->exists();
         $created = [];
 
-        foreach ($request->file('images') as $index => $file) {
+        foreach ($converted as $index => $webpData) {
             // SECURITY: nunca preserva o nome original do arquivo (especificacoes.txt 8.1.12).
-            $filename = Str::random(40).'.'.$file->getClientOriginalExtension();
-            $path = $file->storeAs("products/{$product->id}", $filename, 'public');
+            $filename = Str::random(40).'.webp';
+            $path = "products/{$product->id}/{$filename}";
+            Storage::disk('public')->put($path, $webpData);
 
             $created[] = $product->images()->create([
                 'path' => $path,

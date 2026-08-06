@@ -34,7 +34,7 @@ export function apiErrorMessage(e: any, fallback = 'Ocorreu um erro. Tente novam
   const data = e?.response?._data ?? e?.data
 
   if (!e?.response) return 'Falha de conexão com o servidor. Verifique sua internet e tente novamente.'
-  if (status === 413) return 'Arquivo muito grande para envio.'
+  if (status === 413) return 'Arquivo muito grande para envio (máximo 8MB).'
   if (status === 401 || status === 419) return 'Sessão expirada. Faça login novamente.'
   if (status === 403) return 'Você não tem permissão para fazer isso.'
   if (status === 404) return 'Registro não encontrado (pode já ter sido removido).'

@@ -16,7 +16,7 @@ class ProductImageRequest extends FormRequest
         return [
             // "image" no Laravel ja valida o conteudo real do arquivo (nao so a extensao).
             'images' => ['required', 'array', 'min:1'],
-            'images.*' => ['image', 'mimes:jpg,jpeg,png,webp', 'max:5120'], // 5MB
+            'images.*' => ['image', 'mimes:jpg,jpeg,png,webp', 'max:8192'], // 8MB
             'alt_text' => ['nullable', 'string', 'max:255'],
         ];
     }
