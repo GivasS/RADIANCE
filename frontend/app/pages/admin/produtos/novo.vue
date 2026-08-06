@@ -36,7 +36,7 @@ async function submit() {
     router.push(`/admin/produtos/${product.id}`)
   } catch (e: any) {
     errors.value = e?.response?._data?.errors ?? {}
-    if (!Object.keys(errors.value).length) toastError(apiErrorMessage(e, 'Não foi possível criar o produto.'))
+    toastError(apiErrorMessage(e, 'Não foi possível criar o produto.'))
   } finally {
     submitting.value = false
   }
@@ -55,6 +55,7 @@ useHead({ title: 'Novo Produto — Admin Radiance' })
           <label class="mb-1 block text-xs font-semibold uppercase text-neutral-500">Nome</label>
           <input v-model="form.name" required class="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm focus:border-brand-400 focus:outline-none">
           <p v-if="errors.name" class="mt-1 text-xs text-red-600">{{ errors.name[0] }}</p>
+          <p v-if="errors.slug" class="mt-1 text-xs text-red-600">Já existe um produto com esse nome: {{ errors.slug[0] }}</p>
         </div>
 
         <div>

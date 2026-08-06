@@ -72,7 +72,7 @@ async function saveData() {
     success('Alterações salvas.')
   } catch (e: any) {
     dataErrors.value = e?.response?._data?.errors ?? {}
-    if (!Object.keys(dataErrors.value).length) toastError(apiErrorMessage(e, 'Não foi possível salvar as alterações.'))
+    toastError(apiErrorMessage(e, 'Não foi possível salvar as alterações.'))
   } finally {
     savingData.value = false
   }
@@ -206,10 +206,13 @@ useHead({ title: () => `${product.value?.name ?? 'Produto'} — Admin Radiance` 
         <div class="col-span-2">
           <label class="mb-1 block text-xs font-semibold uppercase text-neutral-500">Nome</label>
           <input v-model="form.name" required class="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm focus:border-brand-400 focus:outline-none">
+          <p v-if="dataErrors.name" class="mt-1 text-xs text-red-600">{{ dataErrors.name[0] }}</p>
+          <p v-if="dataErrors.slug" class="mt-1 text-xs text-red-600">Já existe um produto com esse nome: {{ dataErrors.slug[0] }}</p>
         </div>
         <div>
           <label class="mb-1 block text-xs font-semibold uppercase text-neutral-500">SKU</label>
           <input v-model="form.sku" required class="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm focus:border-brand-400 focus:outline-none">
+          <p v-if="dataErrors.sku" class="mt-1 text-xs text-red-600">{{ dataErrors.sku[0] }}</p>
         </div>
         <div>
           <label class="mb-1 block text-xs font-semibold uppercase text-neutral-500">Categoria</label>
