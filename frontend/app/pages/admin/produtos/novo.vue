@@ -25,14 +25,18 @@ const form = reactive({
 const submitting = ref(false)
 const errors = ref<Record<string, string[]>>({})
 
+const { success, error: toastError } = useToast()
+
 async function submit() {
   submitting.value = true
   errors.value = {}
   try {
     const { product } = await mutate<{ product: { id: number } }>('/api/admin/products', { method: 'POST', body: form })
+    success('Produto criado! Agora adicione imagens e variações.')
     router.push(`/admin/produtos/${product.id}`)
   } catch (e: any) {
     errors.value = e?.response?._data?.errors ?? {}
+    if (!Object.keys(errors.value).length) toastError(apiErrorMessage(e, 'Não foi possível criar o produto.'))
   } finally {
     submitting.value = false
   }
@@ -101,6 +105,7 @@ useHead({ title: 'Novo Produto — Admin Radiance' })
       <button type="submit" :disabled="submitting" class="rounded-lg bg-brand-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50">
         {{ submitting ? 'Salvando...' : 'Criar e continuar (imagens e variações)' }}
       </button>
+      <p class="text-xs text-neutral-400">As imagens e variações são adicionadas na próxima tela, depois que o produto for criado.</p>
     </form>
   </div>
 </template>

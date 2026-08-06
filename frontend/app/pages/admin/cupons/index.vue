@@ -12,6 +12,7 @@ const form = reactive({
   max_uses: '', max_uses_per_user: '1', expires_at: '', active: true,
 })
 const saving = ref(false)
+const { success, error: toastError } = useToast()
 
 function startCreate() {
   editing.value = -1
@@ -38,6 +39,9 @@ async function save() {
     }
     editing.value = null
     await refresh()
+    success('Cupom salvo.')
+  } catch (e: any) {
+    toastError(apiErrorMessage(e, 'Não foi possível salvar o cupom.'))
   } finally {
     saving.value = false
   }
@@ -45,8 +49,13 @@ async function save() {
 
 async function destroyCoupon(id: number) {
   if (!confirm('Remover este cupom?')) return
-  await mutate(`/api/admin/coupons/${id}`, { method: 'DELETE' })
-  await refresh()
+  try {
+    await mutate(`/api/admin/coupons/${id}`, { method: 'DELETE' })
+    await refresh()
+    success('Cupom removido.')
+  } catch (e: any) {
+    toastError(apiErrorMessage(e, 'Não foi possível remover o cupom.'))
+  }
 }
 
 useHead({ title: 'Cupons — Admin Radiance' })

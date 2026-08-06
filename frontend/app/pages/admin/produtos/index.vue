@@ -27,18 +27,29 @@ const { data: products, refresh, pending } = await useAsyncData(
   { watch: [search, page] },
 )
 
+const { success, error: toastError } = useToast()
+
 async function toggleActive(product: ProductRow) {
-  await mutate(`/api/admin/products/${product.id}`, {
-    method: 'PUT',
-    body: { active: !product.active, name: product.name, category_id: product.category_id, sku: product.sku, price: product.price },
-  })
-  await refresh()
+  try {
+    await mutate(`/api/admin/products/${product.id}`, {
+      method: 'PUT',
+      body: { active: !product.active, name: product.name, category_id: product.category_id, sku: product.sku, price: product.price },
+    })
+    await refresh()
+  } catch (e: any) {
+    toastError(apiErrorMessage(e, 'Não foi possível alterar o status do produto.'))
+  }
 }
 
 async function destroyProduct(product: ProductRow) {
   if (!confirm(`Mover "${product.name}" para a lixeira?`)) return
-  await mutate(`/api/admin/products/${product.id}`, { method: 'DELETE' })
-  await refresh()
+  try {
+    await mutate(`/api/admin/products/${product.id}`, { method: 'DELETE' })
+    await refresh()
+    success('Produto movido para a lixeira.')
+  } catch (e: any) {
+    toastError(apiErrorMessage(e, 'Não foi possível excluir o produto.'))
+  }
 }
 
 function formatCurrency(v: string) {

@@ -37,6 +37,7 @@ const { data: product, refresh } = await useAsyncData<ProductFull>(
 )
 
 const activeTab = ref<'dados' | 'imagens' | 'variacoes'>('dados')
+const { success, error: toastError } = useToast()
 
 // --- Aba Dados ---
 const form = reactive({
@@ -68,8 +69,10 @@ async function saveData() {
   try {
     await mutate(`/api/admin/products/${productId.value}`, { method: 'PUT', body: form })
     await refresh()
+    success('Alterações salvas.')
   } catch (e: any) {
     dataErrors.value = e?.response?._data?.errors ?? {}
+    if (!Object.keys(dataErrors.value).length) toastError(apiErrorMessage(e, 'Não foi possível salvar as alterações.'))
   } finally {
     savingData.value = false
   }
@@ -79,8 +82,8 @@ async function saveData() {
 const uploadingImages = ref(false)
 const fileInput = ref<HTMLInputElement>()
 
-async function uploadImages(e: Event) {
-  const files = (e.target as HTMLInputElement).files
+async function uploadImages(event: Event) {
+  const files = (event.target as HTMLInputElement).files
   if (!files?.length) return
 
   uploadingImages.value = true
@@ -90,6 +93,9 @@ async function uploadImages(e: Event) {
   try {
     await mutate(`/api/admin/products/${productId.value}/images`, { method: 'POST', body: formData })
     await refresh()
+    success(files.length > 1 ? `${files.length} imagens enviadas.` : 'Imagem enviada.')
+  } catch (e: any) {
+    toastError(apiErrorMessage(e, 'Não foi possível enviar a imagem.'))
   } finally {
     uploadingImages.value = false
     if (fileInput.value) fileInput.value.value = ''
@@ -97,14 +103,23 @@ async function uploadImages(e: Event) {
 }
 
 async function setMainImage(image: ProductImage) {
-  await mutate(`/api/admin/products/${productId.value}/images/${image.id}`, { method: 'PUT', body: { is_main: true } })
-  await refresh()
+  try {
+    await mutate(`/api/admin/products/${productId.value}/images/${image.id}`, { method: 'PUT', body: { is_main: true } })
+    await refresh()
+  } catch (e: any) {
+    toastError(apiErrorMessage(e, 'Não foi possível definir a imagem principal.'))
+  }
 }
 
 async function deleteImage(image: ProductImage) {
   if (!confirm('Remover essa imagem?')) return
-  await mutate(`/api/admin/products/${productId.value}/images/${image.id}`, { method: 'DELETE' })
-  await refresh()
+  try {
+    await mutate(`/api/admin/products/${productId.value}/images/${image.id}`, { method: 'DELETE' })
+    await refresh()
+    success('Imagem removida.')
+  } catch (e: any) {
+    toastError(apiErrorMessage(e, 'Não foi possível remover a imagem.'))
+  }
 }
 
 // --- Aba Variacoes ---
@@ -119,17 +134,26 @@ async function addVariant() {
     newVariant.variant_value = ''
     newVariant.stock_quantity = 0
     newVariant.price_override = ''
+    success('Variação adicionada.')
+  } catch (e: any) {
+    toastError(apiErrorMessage(e, 'Não foi possível adicionar a variação.'))
   } finally {
     addingVariant.value = false
   }
 }
 
 async function updateVariantStock(variant: Variant, stock_quantity: number) {
-  await mutate(`/api/admin/products/${productId.value}/variants/${variant.id}`, {
-    method: 'PUT',
-    body: { variant_name: variant.variant_name, variant_value: variant.variant_value, stock_quantity },
-  })
-  await refresh()
+  try {
+    await mutate(`/api/admin/products/${productId.value}/variants/${variant.id}`, {
+      method: 'PUT',
+      body: { variant_name: variant.variant_name, variant_value: variant.variant_value, stock_quantity },
+    })
+    await refresh()
+    success('Estoque atualizado.')
+  } catch (e: any) {
+    toastError(apiErrorMessage(e, 'Não foi possível atualizar o estoque.'))
+    await refresh()
+  }
 }
 
 async function deleteVariant(variant: Variant) {
@@ -137,8 +161,9 @@ async function deleteVariant(variant: Variant) {
   try {
     await mutate(`/api/admin/products/${productId.value}/variants/${variant.id}`, { method: 'DELETE' })
     await refresh()
+    success('Variação removida.')
   } catch (e: any) {
-    alert(e?.response?._data?.errors?.variant?.[0] ?? 'Não foi possível remover.')
+    toastError(e?.response?._data?.errors?.variant?.[0] ?? apiErrorMessage(e, 'Não foi possível remover a variação.'))
   }
 }
 
@@ -147,14 +172,19 @@ const stockDelta = ref('')
 const stockNotes = ref('')
 async function adjustStock(variant: Variant) {
   if (!stockDelta.value || !stockNotes.value) return
-  await mutate(`/api/admin/products/${productId.value}/variants/${variant.id}/adjust-stock`, {
-    method: 'POST',
-    body: { delta: Number(stockDelta.value), notes: stockNotes.value },
-  })
-  await refresh()
-  adjustingStock.value = null
-  stockDelta.value = ''
-  stockNotes.value = ''
+  try {
+    await mutate(`/api/admin/products/${productId.value}/variants/${variant.id}/adjust-stock`, {
+      method: 'POST',
+      body: { delta: Number(stockDelta.value), notes: stockNotes.value },
+    })
+    await refresh()
+    success('Estoque ajustado.')
+    adjustingStock.value = null
+    stockDelta.value = ''
+    stockNotes.value = ''
+  } catch (e: any) {
+    toastError(apiErrorMessage(e, 'Não foi possível ajustar o estoque.'))
+  }
 }
 
 useHead({ title: () => `${product.value?.name ?? 'Produto'} — Admin Radiance` })

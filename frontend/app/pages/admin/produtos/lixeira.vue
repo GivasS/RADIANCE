@@ -6,9 +6,16 @@ const { request, mutate } = useApi()
 const { data: products, refresh } = await useAsyncData('admin-products-trash', () =>
   request<{ products: any[] }>('/api/admin/products/trashed').then(r => r.products))
 
+const { success, error: toastError } = useToast()
+
 async function restore(id: number) {
-  await mutate(`/api/admin/products/${id}/restore`, { method: 'POST' })
-  await refresh()
+  try {
+    await mutate(`/api/admin/products/${id}/restore`, { method: 'POST' })
+    await refresh()
+    success('Produto restaurado.')
+  } catch (e: any) {
+    toastError(apiErrorMessage(e, 'Não foi possível restaurar o produto.'))
+  }
 }
 
 useHead({ title: 'Lixeira de Produtos — Admin Radiance' })

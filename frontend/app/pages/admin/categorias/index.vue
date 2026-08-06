@@ -14,6 +14,7 @@ const editing = ref<number | null>(null)
 const form = reactive({ name: '', parent_id: '', position: 0, active: true })
 const creating = ref(false)
 const saving = ref(false)
+const { success, error: toastError } = useToast()
 
 function startCreate(parentId: number | null = null) {
   editing.value = -1
@@ -35,6 +36,9 @@ async function save() {
     }
     editing.value = null
     await refresh()
+    success('Categoria salva.')
+  } catch (e: any) {
+    toastError(apiErrorMessage(e, 'Não foi possível salvar a categoria.'))
   } finally {
     saving.value = false
   }
@@ -42,8 +46,13 @@ async function save() {
 
 async function destroyCategory(cat: Category) {
   if (!confirm(`Apagar a categoria "${cat.name}"?`)) return
-  await mutate(`/api/admin/categories/${cat.id}`, { method: 'DELETE' })
-  await refresh()
+  try {
+    await mutate(`/api/admin/categories/${cat.id}`, { method: 'DELETE' })
+    await refresh()
+    success('Categoria excluída.')
+  } catch (e: any) {
+    toastError(apiErrorMessage(e, 'Não foi possível excluir a categoria.'))
+  }
 }
 
 useHead({ title: 'Categorias — Admin Radiance' })

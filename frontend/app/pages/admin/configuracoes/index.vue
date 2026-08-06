@@ -15,6 +15,7 @@ watchEffect(() => {
 
 const saving = ref(false)
 const saved = ref(false)
+const { error: toastError } = useToast()
 
 async function save() {
   saving.value = true
@@ -27,6 +28,8 @@ async function save() {
     await refresh()
     saved.value = true
     setTimeout(() => { saved.value = false }, 2000)
+  } catch (e: any) {
+    toastError(apiErrorMessage(e, 'Não foi possível salvar as configurações.'))
   } finally {
     saving.value = false
   }

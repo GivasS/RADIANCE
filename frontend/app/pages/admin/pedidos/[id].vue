@@ -24,6 +24,7 @@ const { data, refresh } = await useAsyncData(
 )
 
 const nextStatuses = computed(() => TRANSITIONS[data.value?.order?.status] ?? [])
+const { success, error: toastError } = useToast()
 
 const changingStatus = ref(false)
 async function changeStatus(status: string) {
@@ -32,6 +33,9 @@ async function changeStatus(status: string) {
   try {
     await mutate(`/api/admin/orders/${orderId.value}/status`, { method: 'PUT', body: { status } })
     await refresh()
+    success('Status atualizado.')
+  } catch (e: any) {
+    toastError(apiErrorMessage(e, 'Não foi possível mudar o status do pedido.'))
   } finally {
     changingStatus.value = false
   }
@@ -45,6 +49,9 @@ async function saveTracking() {
   try {
     await mutate(`/api/admin/orders/${orderId.value}/tracking`, { method: 'PUT', body: { tracking_code: trackingCode.value } })
     await refresh()
+    success('Código de rastreio salvo.')
+  } catch (e: any) {
+    toastError(apiErrorMessage(e, 'Não foi possível salvar o código de rastreio.'))
   } finally {
     savingTracking.value = false
   }
@@ -57,6 +64,9 @@ async function cancelOrder() {
   try {
     await mutate(`/api/admin/orders/${orderId.value}/cancel`, { method: 'POST' })
     await refresh()
+    success('Pedido cancelado.')
+  } catch (e: any) {
+    toastError(apiErrorMessage(e, 'Não foi possível cancelar o pedido.'))
   } finally {
     cancelling.value = false
   }

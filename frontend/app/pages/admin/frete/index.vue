@@ -9,6 +9,7 @@ const { data: rates, refresh } = await useAsyncData('admin-shipping-rates', () =
 const editing = ref<number | null>(null)
 const form = reactive({ name: '', state: '', price: '', delivery_days: '7', free_above: '', position: 0, active: true })
 const saving = ref(false)
+const { success, error: toastError } = useToast()
 
 function startCreate() {
   editing.value = -1
@@ -34,6 +35,9 @@ async function save() {
     }
     editing.value = null
     await refresh()
+    success('Faixa de frete salva.')
+  } catch (e: any) {
+    toastError(apiErrorMessage(e, 'Não foi possível salvar a faixa de frete.'))
   } finally {
     saving.value = false
   }
@@ -41,8 +45,13 @@ async function save() {
 
 async function destroyRate(id: number) {
   if (!confirm('Remover essa faixa de frete?')) return
-  await mutate(`/api/admin/shipping-rates/${id}`, { method: 'DELETE' })
-  await refresh()
+  try {
+    await mutate(`/api/admin/shipping-rates/${id}`, { method: 'DELETE' })
+    await refresh()
+    success('Faixa de frete removida.')
+  } catch (e: any) {
+    toastError(apiErrorMessage(e, 'Não foi possível remover a faixa de frete.'))
+  }
 }
 
 useHead({ title: 'Frete — Admin Radiance' })
