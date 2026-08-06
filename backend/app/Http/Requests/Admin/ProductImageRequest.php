@@ -14,9 +14,11 @@ class ProductImageRequest extends FormRequest
     public function rules(): array
     {
         return [
-            // "image" no Laravel ja valida o conteudo real do arquivo (nao so a extensao).
+            // Sem a regra "image" pois ela nao reconhece heic/heif (fotos
+            // padrao do iPhone) - "mimes" ja valida o conteudo real do
+            // arquivo, nao so a extensao, entao continua seguro.
             'images' => ['required', 'array', 'min:1'],
-            'images.*' => ['image', 'mimes:jpg,jpeg,png,webp', 'max:8192'], // 8MB
+            'images.*' => ['file', 'mimes:jpg,jpeg,png,webp,heic,heif', 'max:8192'], // 8MB
             'alt_text' => ['nullable', 'string', 'max:255'],
         ];
     }
