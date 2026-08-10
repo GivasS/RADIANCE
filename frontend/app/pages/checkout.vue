@@ -69,7 +69,7 @@ async function loadShipping() {
   if (!selectedAddress.value) return
   loadingShipping.value = true
   try {
-    const { options } = await request<{ options: ShippingOption[] }>('/api/cart/shipping/quote', {
+    const { options } = await mutate<{ options: ShippingOption[] }>('/api/cart/shipping/quote', {
       method: 'POST',
       body: { zipcode: selectedAddress.value.zipcode, subtotal: cart.value?.subtotal },
     })
@@ -95,7 +95,7 @@ async function applyCoupon() {
   applyingCoupon.value = true
   couponError.value = ''
   try {
-    const result = await request<{ coupon: { code: string }, discount: number }>('/api/cart/coupon/validate', {
+    const result = await mutate<{ coupon: { code: string }, discount: number }>('/api/cart/coupon/validate', {
       method: 'POST',
       params: { code: couponCode.value },
     })
@@ -363,7 +363,7 @@ useHead({ title: 'Finalizar Compra — Radiance' })
           </div>
 
           <div v-else class="space-y-5">
-            <CheckoutCreditCardPreview
+            <CreditCardPreview
               :number="cardData.number"
               :name="cardData.cardholderName"
               :expiry="cardData.expiry"

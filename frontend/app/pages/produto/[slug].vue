@@ -122,7 +122,7 @@ async function calculateShipping() {
   if (!zipcode.value || zipcode.value.replace(/\D/g, '').length < 8) return
   calculatingShipping.value = true
   try {
-    const { options } = await request<{ options: typeof shippingOptions.value }>('/api/cart/shipping/quote', {
+    const { options } = await mutate<{ options: typeof shippingOptions.value }>('/api/cart/shipping/quote', {
       method: 'POST',
       body: { zipcode: zipcode.value, subtotal: effectivePrice.value * quantity.value },
     })
