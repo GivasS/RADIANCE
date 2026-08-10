@@ -11,10 +11,13 @@ interface OrderDetail {
   payment?: {
     id: number
     status: string
+    method: string
+    installments: number
     qr_code: string | null
     qr_code_image: string | null
     copia_e_cola: string | null
     expires_at: string | null
+    raw_response: any
   }
 }
 
@@ -56,6 +59,8 @@ const countdownText = computed(() => {
 
 const isPaid = computed(() => order.value?.status === 'pago' || order.value?.payment?.status === 'aprovado')
 const isExpired = computed(() => ['expirado', 'cancelado'].includes(order.value?.status ?? ''))
+const isDeclined = computed(() => order.value?.payment?.method === 'credit_card' && order.value?.payment?.status === 'recusado')
+const declineReason = computed(() => order.value?.payment?.raw_response?.data?.refusal?.reason ?? 'O cartão foi recusado.')
 
 onMounted(() => {
   updateCountdown()
@@ -63,7 +68,7 @@ onMounted(() => {
 
   // Polling do status a cada 5s (especificacoes.txt 4.2.9)
   pollTimer = setInterval(async () => {
-    if (isPaid.value || isExpired.value) return
+    if (isPaid.value || isExpired.value || isDeclined.value) return
     await refresh()
     if (isPaid.value) await refreshCart()
   }, 5000)
@@ -97,6 +102,16 @@ useHead({ title: () => `Pedido ${orderNumber.value} — Radiance` })
             Continuar comprando
           </NuxtLink>
         </div>
+      </div>
+
+      <!-- Cartao recusado -->
+      <div v-else-if="isDeclined">
+        <p class="text-5xl">💳</p>
+        <h1 class="mt-4 font-display text-2xl text-brand-700">Pagamento recusado</h1>
+        <p class="mt-2 text-neutral-500">{{ declineReason }}</p>
+        <NuxtLink to="/carrinho" class="mt-6 inline-block rounded-full bg-brand-600 px-6 py-2 text-sm text-white hover:bg-brand-700">
+          Tentar novamente
+        </NuxtLink>
       </div>
 
       <!-- Expirado -->

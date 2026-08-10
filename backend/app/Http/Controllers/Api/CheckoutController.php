@@ -21,6 +21,8 @@ class CheckoutController extends Controller
             addressId: $request->integer('address_id'),
             shippingRateId: $request->integer('shipping_rate_id'),
             couponCode: $request->string('coupon_code')->value() ?: null,
+            paymentMethod: $request->string('payment_method')->value(),
+            card: $request->input('card'),
         );
 
         return response()->json([

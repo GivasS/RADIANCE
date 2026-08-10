@@ -12,6 +12,7 @@ use App\Models\Setting;
 use App\Models\StockReservation;
 use App\Models\User;
 use App\Notifications\OrderCreatedNotification;
+use App\Services\Payments\CardGatewayInterface;
 use App\Services\Payments\PaymentGatewayInterface;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -24,14 +25,17 @@ class CheckoutService
         private readonly ShippingService $shipping,
         private readonly CouponService $coupons,
         private readonly PaymentGatewayInterface $gateway,
+        private readonly CardGatewayInterface $cardGateway,
     ) {}
 
     /**
      * Fluxo completo do checkout (especificacoes.txt secao 4.2, passos 1-8):
      * revalida estoque, cria pedido pendente + itens (snapshot) + reservas
-     * com TTL, gera a cobranca Pix e esvazia o carrinho.
+     * com TTL, gera a cobranca (Pix ou cartao) e esvazia o carrinho.
+     *
+     * @param  array{payment_token: string, installments: int, holder_document: string, holder_birth: string}|null  $card
      */
-    public function checkout(User $user, Cart $cart, int $addressId, int $shippingRateId, ?string $couponCode): array
+    public function checkout(User $user, Cart $cart, int $addressId, int $shippingRateId, ?string $couponCode, string $paymentMethod, ?array $card = null): array
     {
         $presented = $this->carts->present($cart);
 
@@ -67,7 +71,7 @@ class CheckoutService
         $total = round($subtotal - $discount + $shippingTotal, 2);
 
         return DB::transaction(function () use (
-            $user, $cart, $presented, $address, $rate, $coupon, $discount, $subtotal, $shippingTotal, $total
+            $user, $cart, $presented, $address, $rate, $coupon, $discount, $subtotal, $shippingTotal, $total, $paymentMethod, $card
         ) {
             $order = Order::create([
                 'order_number' => $this->generateOrderNumber(),
@@ -131,31 +135,93 @@ class CheckoutService
 
             $order->update(['status' => 'aguardando_pagamento']);
 
-            $pix = $this->gateway->createPixCharge($order);
-
-            $payment = Payment::create([
-                'order_id' => $order->id,
-                'provider' => 'efi',
-                'method' => 'pix',
-                'efi_txid' => $pix['txid'],
-                'qr_code' => $pix['qr_code'],
-                'qr_code_image' => $pix['qr_code_image'],
-                'copia_e_cola' => $pix['copia_e_cola'],
-                'status' => 'pendente',
-                'amount' => $order->total,
-                'raw_response' => $pix['raw_response'],
-                'expires_at' => $pix['expires_at'],
-            ]);
+            $payment = $paymentMethod === 'cartao'
+                ? $this->createCardPayment($order, $user, $address, $card)
+                : $this->createPixPayment($order);
 
             // Esvazia o carrinho - os itens ja viraram order_items (especificacoes.txt 1.1.7).
-            $cart->items()->delete();
-            $cart->update(['status' => 'converted']);
-            $cart->delete();
+            // Excecao: cartao recusado deixa o carrinho intacto pra dar pra
+            // tentar de novo sem ter que recolocar tudo (nao teve pagamento
+            // nenhum, diferente do Pix que so fica "pendente" aguardando).
+            if (! ($paymentMethod === 'cartao' && $payment->status === 'recusado')) {
+                $cart->items()->delete();
+                $cart->update(['status' => 'converted']);
+                $cart->delete();
+            }
 
             $user->notify(new OrderCreatedNotification($order, $payment));
 
             return ['order' => $order->fresh('items'), 'payment' => $payment];
         });
+    }
+
+    private function createPixPayment(Order $order): Payment
+    {
+        $pix = $this->gateway->createPixCharge($order);
+
+        return Payment::create([
+            'order_id' => $order->id,
+            'provider' => 'efi',
+            'method' => 'pix',
+            'efi_txid' => $pix['txid'],
+            'qr_code' => $pix['qr_code'],
+            'qr_code_image' => $pix['qr_code_image'],
+            'copia_e_cola' => $pix['copia_e_cola'],
+            'status' => 'pendente',
+            'amount' => $order->total,
+            'raw_response' => $pix['raw_response'],
+            'expires_at' => $pix['expires_at'],
+        ]);
+    }
+
+    /**
+     * @param  array{payment_token: string, installments: int, holder_document: string, holder_birth: string}  $card
+     */
+    private function createCardPayment(Order $order, User $user, Address $address, array $card): Payment
+    {
+        $charge = $this->cardGateway->chargeCard($order, [
+            'payment_token' => $card['payment_token'],
+            'installments' => $card['installments'],
+            'customer' => [
+                'name' => $user->name,
+                'cpf' => preg_replace('/\D/', '', $card['holder_document']),
+                'email' => $user->email,
+                'phone_number' => preg_replace('/\D/', '', $user->phone ?? ''),
+                'birth' => $card['holder_birth'],
+            ],
+            'billing_address' => [
+                'street' => $address->street,
+                'number' => $address->number,
+                'neighborhood' => $address->district,
+                'zipcode' => preg_replace('/\D/', '', $address->zipcode),
+                'city' => $address->city,
+                'state' => $address->state,
+            ],
+        ]);
+
+        // Cartao e sincrono - ja sabemos aprovado/recusado na hora, sem
+        // depender de webhook como o Pix.
+        $status = match ($charge['status']) {
+            'approved' => 'aprovado',
+            'unpaid' => 'recusado',
+            default => 'pendente',
+        };
+
+        if ($status === 'aprovado') {
+            $order->update(['status' => 'pago']);
+        }
+
+        return Payment::create([
+            'order_id' => $order->id,
+            'provider' => 'efi',
+            'method' => 'credit_card',
+            'efi_charge_id' => $charge['charge_id'],
+            'status' => $status,
+            'amount' => $order->total,
+            'installments' => $charge['installments'],
+            'raw_response' => $charge['raw_response'],
+            'paid_at' => $status === 'aprovado' ? now() : null,
+        ]);
     }
 
     private function generateOrderNumber(): string

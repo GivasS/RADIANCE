@@ -119,9 +119,14 @@ function formatCurrency(value: number) {
 }
 
 // Metodo de pagamento
+const { fetchInstallments, tokenizeCard } = useEfiCard()
+
 const paymentMethod = ref<'pix' | 'cartao'>('pix')
 const cvvFocused = ref(false)
-const cardData = reactive({ number: '', expiry: '', cvv: '', brand: '', cardholderName: '' })
+const cardData = reactive({
+  number: '', expiry: '', cvv: '', brand: '', cardholderName: '',
+  cpf: user.value?.cpf ?? '', birth: '',
+})
 
 function maskCardNumber(v: string) {
   return v.replace(/\D/g, '').slice(0, 16).replace(/(.{4})/g, '$1 ').trim()
@@ -129,6 +134,9 @@ function maskCardNumber(v: string) {
 function maskExpiry(v: string) {
   const digits = v.replace(/\D/g, '').slice(0, 4)
   return digits.length > 2 ? digits.replace(/(\d{2})(\d*)/, '$1/$2') : digits
+}
+function maskCpf(v: string) {
+  return v.replace(/\D/g, '').slice(0, 11).replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2')
 }
 function detectBrand(number: string) {
   const n = number.replace(/\s/g, '')
@@ -139,10 +147,47 @@ function detectBrand(number: string) {
   if (/^(384100|384140|384160|606282|637599|637095|637568)/.test(n)) return 'hipercard'
   return ''
 }
+
+// Parcelas
+const installmentOptions = ref<{ installment: number, currency: string, has_interest: boolean }[]>([])
+const selectedInstallments = ref(1)
+const loadingInstallments = ref(false)
+const installmentsError = ref('')
+
+async function loadInstallments() {
+  if (!cardData.brand || !total.value) return
+  loadingInstallments.value = true
+  installmentsError.value = ''
+  try {
+    const installments = await fetchInstallments(cardData.brand, Math.round(total.value * 100))
+    installmentOptions.value = installments
+    selectedInstallments.value = installments[0]?.installment ?? 1
+  } catch (e: any) {
+    installmentsError.value = e.message || 'Não foi possível consultar as parcelas.'
+    installmentOptions.value = []
+  } finally {
+    loadingInstallments.value = false
+  }
+}
+
 function onCardNumberInput() {
   cardData.number = maskCardNumber(cardData.number)
-  cardData.brand = detectBrand(cardData.number)
+  const brand = detectBrand(cardData.number)
+  if (brand !== cardData.brand) {
+    cardData.brand = brand
+    if (brand) loadInstallments()
+  }
 }
+
+const cardFormValid = computed(() =>
+  cardData.number.replace(/\D/g, '').length >= 15
+  && cardData.cardholderName.trim().length > 2
+  && /^\d{2}\/\d{2}$/.test(cardData.expiry)
+  && cardData.cvv.length >= 3
+  && cardData.cpf.replace(/\D/g, '').length === 11
+  && cardData.birth
+  && cardData.brand,
+)
 
 // Finalizar pedido
 const submitting = ref(false)
@@ -150,23 +195,47 @@ const submitError = ref('')
 
 async function submitOrder() {
   if (!selectedAddressId.value || !selectedShippingId.value) return
+  if (paymentMethod.value === 'cartao' && !cardFormValid.value) {
+    submitError.value = 'Preencha todos os dados do cartão corretamente.'
+    return
+  }
 
   submitting.value = true
   submitError.value = ''
 
   try {
-    const { order, payment } = await mutate<{ order: any, payment: any }>('/api/checkout', {
-      method: 'POST',
-      body: {
-        address_id: selectedAddressId.value,
-        shipping_rate_id: selectedShippingId.value,
-        coupon_code: appliedCoupon.value?.code ?? null,
-      },
-    })
+    const body: Record<string, any> = {
+      address_id: selectedAddressId.value,
+      shipping_rate_id: selectedShippingId.value,
+      coupon_code: appliedCoupon.value?.code ?? null,
+      payment_method: paymentMethod.value,
+    }
+
+    if (paymentMethod.value === 'cartao') {
+      const [expMonth, expYear] = cardData.expiry.split('/')
+      const { paymentToken } = await tokenizeCard({
+        brand: cardData.brand,
+        number: cardData.number.replace(/\s/g, ''),
+        cvv: cardData.cvv,
+        expirationMonth: expMonth,
+        expirationYear: `20${expYear}`,
+        holderName: cardData.cardholderName,
+        holderDocument: cardData.cpf.replace(/\D/g, ''),
+      })
+
+      body.card = {
+        payment_token: paymentToken,
+        installments: selectedInstallments.value,
+        holder_document: cardData.cpf.replace(/\D/g, ''),
+        holder_birth: cardData.birth,
+      }
+    }
+
+    const { order, payment } = await mutate<{ order: any, payment: any }>('/api/checkout', { method: 'POST', body })
 
     router.push(`/pedido/${order.order_number}?payment_id=${payment.id}`)
   } catch (e: any) {
-    submitError.value = e?.data?.message || 'Não foi possível finalizar o pedido. Tente novamente.'
+    submitError.value = e?.data?.message || e?.message || 'Não foi possível finalizar o pedido. Tente novamente.'
   } finally {
     submitting.value = false
   }
@@ -303,10 +372,6 @@ useHead({ title: 'Finalizar Compra — Radiance' })
               :is-flipped="cvvFocused"
             />
 
-            <div class="rounded-lg bg-amber-50 p-3 text-center text-xs text-amber-700">
-              Pagamento com cartão em breve — por enquanto, finalize com Pix.
-            </div>
-
             <div class="grid grid-cols-2 gap-3">
               <input v-model="cardData.cardholderName" placeholder="Nome no cartão" class="col-span-2 rounded-lg border border-brand-100 px-3 py-2 text-sm">
               <input
@@ -325,6 +390,23 @@ useHead({ title: 'Finalizar Compra — Radiance' })
                 @focus="cvvFocused = true"
                 @blur="cvvFocused = false"
               >
+              <input v-model="cardData.cpf" placeholder="CPF do titular" maxlength="14" class="rounded-lg border border-brand-100 px-3 py-2 text-sm" @input="cardData.cpf = maskCpf(cardData.cpf)">
+              <input v-model="cardData.birth" type="date" placeholder="Data de nascimento" class="rounded-lg border border-brand-100 px-3 py-2 text-sm">
+
+              <div class="col-span-2">
+                <select
+                  v-if="installmentOptions.length"
+                  v-model="selectedInstallments"
+                  class="w-full rounded-lg border border-brand-100 px-3 py-2 text-sm"
+                >
+                  <option v-for="opt in installmentOptions" :key="opt.installment" :value="opt.installment">
+                    {{ opt.installment }}x de {{ opt.currency }} {{ opt.has_interest ? '' : '(sem juros)' }}
+                  </option>
+                </select>
+                <p v-else-if="loadingInstallments" class="text-xs text-neutral-400">Consultando parcelas...</p>
+                <p v-else-if="installmentsError" class="text-xs text-red-600">{{ installmentsError }}</p>
+                <p v-else class="text-xs text-neutral-400">Preencha o número do cartão pra ver as opções de parcelamento.</p>
+              </div>
             </div>
           </div>
         </section>

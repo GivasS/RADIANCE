@@ -8,7 +8,9 @@ export default defineNuxtConfig({
   runtimeConfig: {
     public: {
       apiBase: process.env.NUXT_PUBLIC_API_BASE || 'https://api-radiance.gsstack.com.br',
-      siteUrl: process.env.NUXT_PUBLIC_SITE_URL || 'https://radiance.gsstack.com.br'
+      siteUrl: process.env.NUXT_PUBLIC_SITE_URL || 'https://radiance.gsstack.com.br',
+      efiAccountId: process.env.NUXT_PUBLIC_EFI_ACCOUNT_ID || '',
+      efiSandbox: process.env.NUXT_PUBLIC_EFI_SANDBOX === 'true'
     }
   }
 })

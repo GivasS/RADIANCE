@@ -42,6 +42,7 @@ return [
         'sandbox' => env('EFI_SANDBOX', true),
         'pix_key' => env('EFI_PIX_KEY'),
         'webhook_url' => env('EFI_WEBHOOK_URL'),
+        'account_id' => env('EFI_ACCOUNT_ID'),
     ],
 
 ];
