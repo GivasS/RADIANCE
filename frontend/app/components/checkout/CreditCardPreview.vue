@@ -1,22 +1,34 @@
 <template>
-  <div class="card-scene" :class="{ flipped: isFlipped }">
+  <div
+    class="card-scene"
+    :class="{ flipped: computedFlipped }"
+    @mouseenter="hovering = true"
+    @mouseleave="hovering = false"
+    @click="onTap"
+  >
     <div class="card-3d">
       <!-- FRENTE -->
       <div class="card-face card-front" :style="cardGradient">
         <div class="card-shine" />
         <div class="card-pattern" />
 
-        <div class="absolute top-5 right-5 h-8 flex items-center">
-          <Transition name="brand-fade" mode="out-in">
-            <img v-if="brand" :key="brand" :src="`/images/brands/${brand}.svg`" class="h-8 object-contain drop-shadow" :alt="brand">
-          </Transition>
-        </div>
-
-        <div class="chip">
-          <div class="chip-line chip-line-h" />
-          <div class="chip-line chip-line-v" />
-          <div class="chip-center" />
-        </div>
+        <svg class="chip" viewBox="0 0 110 92" xmlns="http://www.w3.org/2000/svg">
+          <title>Chip</title>
+          <path
+            d="M1 13A12 12 0 0 1 13 1h84a12 12 0 0 1 12 12v66a12 12 0 0 1-12 12H13A12 12 0 0 1 1 79V13Z"
+            fill="url(#chip-gradient)"
+          />
+          <path
+            d="M108 71.5H83.65L70.53 60.87A21.41 21.41 0 0 1 56 67.47V90h41a11 11 0 0 0 11-11v-7.5ZM76.48 47a21.38 21.38 0 0 1-4.63 12.36l12.5 10.14H108V47H76.48ZM2 69.5h24.14l12.02-10.12A21.38 21.38 0 0 1 33.52 47H2v22.5Zm53-43c-5.85 0-11.1 2.57-14.68 6.66A19.4 19.4 0 0 0 35.5 46a19.4 19.4 0 0 0 4.82 12.84A19.43 19.43 0 0 0 55 65.5c5.85 0 11.1-2.57 14.68-6.66A19.4 19.4 0 0 0 74.5 46a19.4 19.4 0 0 0-4.82-12.84A19.43 19.43 0 0 0 55 26.5Zm16.85 6.14A21.38 21.38 0 0 1 76.48 45H108V22.5H84.35l-12.5 10.14ZM2 45h31.52a21.38 21.38 0 0 1 4.64-12.38L26.14 22.5H2V45Zm0 34a11 11 0 0 0 11 11h41V67.47a21.41 21.41 0 0 1-14.52-6.59L27.14 71.26l-.27.24H2V79Zm106-66A11 11 0 0 0 97 2H56v22.52c5.7.27 10.83 2.74 14.53 6.61L83.65 20.5H108V13ZM2 20.5h24.87l.27.24 12.34 10.38A21.41 21.41 0 0 1 54 24.52V2H13A11 11 0 0 0 2 13v7.5ZM110 79a13 13 0 0 1-13 13H13A13 13 0 0 1 0 79V13A13 13 0 0 1 13 0h84a13 13 0 0 1 13 13v66Z"
+            fill="#000"
+          />
+          <defs>
+            <linearGradient id="chip-gradient" gradientUnits="userSpaceOnUse" x1="1" x2="112.7" y1="46" y2="78.12">
+              <stop stop-color="#EDE5A6" />
+              <stop offset="1" stop-color="#CFA255" />
+            </linearGradient>
+          </defs>
+        </svg>
 
         <div class="card-number">
           <span v-for="(group, i) in numberGroups" :key="i" class="number-group">
@@ -35,6 +47,12 @@
             <div class="card-label">Validade</div>
             <div class="card-value">{{ displayExpiry || 'MM/AAAA' }}</div>
           </div>
+        </div>
+
+        <div class="brand-front">
+          <Transition name="brand-fade" mode="out-in">
+            <img v-if="brand" :key="brand" :src="`/images/brands/${brand}.svg`" class="h-8 object-contain drop-shadow" :alt="brand">
+          </Transition>
         </div>
       </div>
 
@@ -71,6 +89,27 @@ const props = defineProps<{
   isFlipped?: boolean
 }>()
 
+// Vira ao passar o mouse (desktop) ou tocar (mobile), igual ao componente de
+// referencia (kibo-ui) - somado ao comportamento existente de virar sozinho
+// quando o campo CVV do formulario recebe foco.
+const supportsHover = ref(false)
+const hovering = ref(false)
+const tapFlipped = ref(false)
+
+onMounted(() => {
+  const mql = window.matchMedia('(hover: hover)')
+  supportsHover.value = mql.matches
+  mql.addEventListener('change', e => (supportsHover.value = e.matches))
+})
+
+function onTap() {
+  if (!supportsHover.value) tapFlipped.value = !tapFlipped.value
+}
+
+const computedFlipped = computed(() =>
+  props.isFlipped || (supportsHover.value && hovering.value) || (!supportsHover.value && tapFlipped.value),
+)
+
 // Gradiente por bandeira (cores reais das bandeiras); default usa a paleta da Radiance.
 const brandGradients: Record<string, string> = {
   visa: 'linear-gradient(135deg, #1a1f71 0%, #0057a8 60%, #003087 100%)',
@@ -99,8 +138,9 @@ const cvvDisplay = computed(() => props.cvv ? '•'.repeat(props.cvv.length) : '
   width: 100%;
   max-width: 400px;
   aspect-ratio: 1.586 / 1;
-  perspective: 1200px;
+  perspective: 1600px;
   margin: 0 auto;
+  cursor: pointer;
 }
 
 .card-3d {
@@ -108,7 +148,7 @@ const cvvDisplay = computed(() => props.cvv ? '•'.repeat(props.cvv.length) : '
   height: 100%;
   position: relative;
   transform-style: preserve-3d;
-  transition: transform 0.65s cubic-bezier(0.4, 0.2, 0.2, 1);
+  transition: transform 0.7s ease-in-out;
 }
 
 .card-scene.flipped .card-3d {
@@ -154,30 +194,10 @@ const cvvDisplay = computed(() => props.cvv ? '•'.repeat(props.cvv.length) : '
   top: 38%;
   left: 6%;
   width: 13%;
-  aspect-ratio: 1.4 / 1;
-  background: linear-gradient(135deg, #d4a843 0%, #f0c96b 40%, #b8892a 60%, #e8b84b 100%);
-  border-radius: 4px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.3);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  aspect-ratio: 110 / 92;
+  transform: translateY(-50%);
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));
   z-index: 2;
-}
-
-.chip-line {
-  position: absolute;
-  background: rgba(160, 110, 20, 0.6);
-}
-
-.chip-line-h { width: 80%; height: 1px; top: 50%; }
-.chip-line-v { height: 80%; width: 1px; left: 50%; }
-
-.chip-center {
-  width: 35%;
-  height: 35%;
-  background: linear-gradient(135deg, #c8962a, #e8b84b);
-  border-radius: 2px;
-  box-shadow: inset 0 1px 2px rgba(0,0,0,0.3);
 }
 
 .card-number {
@@ -239,6 +259,13 @@ const cvvDisplay = computed(() => props.cvv ? '•'.repeat(props.cvv.length) : '
 }
 
 .card-expiry-box { text-align: right; }
+
+.brand-front {
+  position: absolute;
+  bottom: 7%;
+  right: 6%;
+  z-index: 2;
+}
 
 .mag-stripe {
   position: absolute;
